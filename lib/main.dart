@@ -63,14 +63,35 @@ class _MyHomePageState extends State<MyHomePage> {
 
               BoardPosition pos = new BoardPosition(i, j);
 
-              Image img = getImageOfPiece(widget.bm.GetPiece(pos));
+              Piece piece = widget.bm.GetPiece(pos);
+              Image img = getImageOfPiece(piece);
 
-              return img == null ? SizedBox(height: 0, width: 0,)
-              : FittedBox(
-                fit: BoxFit.fill,
-                child: img
-              );
-
+              return DragTarget<Piece>(
+                onAccept: (data) {
+                  setState(() {
+                    widget.bm.ReplacePiece(data, pos);
+                });
+              },
+              builder: (context, List<dynamic> candidateData,
+                  List<dynamic> rejectedData) {
+                return img == null
+                    ? SizedBox(
+                        height: 0,
+                        width: 0,
+                      )
+                    : Draggable<Piece>(
+                        data: piece,
+                        feedbackOffset: Offset.fromDirection(0, 50),
+                        feedback: SizedBox(
+                          child: img,
+                          width: 60,
+                          height: 60,
+                        ),
+                        childWhenDragging: Container(),
+                        child: FittedBox(fit: BoxFit.fill, child: img),
+                      );
+              },
+            );
           },
         ),
         floatingActionButton: FloatingActionButton(
