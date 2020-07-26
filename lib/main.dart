@@ -81,7 +81,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       )
                     : Draggable<Piece>(
                         data: piece,
-                        feedbackOffset: Offset.fromDirection(0, 50),
+                        //feedbackOffset: Offset.fromDirection(0, 50),
                         feedback: SizedBox(
                           child: img,
                           width: 60,
