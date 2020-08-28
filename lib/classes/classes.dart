@@ -39,10 +39,9 @@ class BoardManager{
 
   void PlacePiece(Piece piece, BoardPosition pos) {
     board[pos.row][pos.col].piece = piece;
-
-    // TODO Also remove piece from wherever it previously was
   }
 
+  ///  Sets the initial positions of the pieces
   void Setup() {
 
     for(int i = 0; i < 8; i++)
@@ -81,6 +80,7 @@ class BoardManager{
     try{
       return board[pos.row][pos.col];
     }catch(e){
+      // Indices are out of bounds
       return null;
     }
   }
@@ -97,8 +97,9 @@ class BoardManager{
     return piece != null;
   }
 
+  /// Asks if a board position is within the valid moveset of a piece.
   bool IsValidMove(Piece piece, BoardPosition pos) {
-    Space space = board[pos.row][pos.col];
+    // Space space = board[pos.row][pos.col];
     return piece.ValidMoves.indexWhere((p) => p.Equals(pos)) != -1;
   }
 
@@ -106,6 +107,9 @@ class BoardManager{
     whitesTurn = !whitesTurn;
   }
 
+
+  /// Calculates ALL valid moves for all pieces currently on the board. This should be called whenever a player's turn has been resolved, such as following a move or promotion.
+  /// TODO: Check, Castling, En Passent
   void CalculateValidMoves() {
 
     for(int i = 0; i < 8; i++) {
@@ -118,6 +122,7 @@ class BoardManager{
         if(whitesTurn && piece.color == PieceColor.black) continue;
         if(!whitesTurn && piece.color == PieceColor.white) continue;
 
+        // This is clunky. Preferably would be able to invert colours easily.
         PieceColor enemyColour = piece.color == PieceColor.white ? PieceColor.black : PieceColor.white;
 
         switch(piece.type)
@@ -127,22 +132,23 @@ class BoardManager{
             int forward = (piece.color == PieceColor.white ? -1 : 1);
             int startRow = (piece.color == PieceColor.white ? 6 : 1);
 
-            // Space in front
+            // Space in front is valid, so long as it's not off the board (technically not necessary once promotion is taken into account) AND space is unoccupied
             BoardPosition positionInFront = BoardPosition(i + forward, j);
             if(GetSpace(positionInFront)!=null && !IsSpaceOccupied(positionInFront)) piece.ValidMoves.add(positionInFront);
 
-            // 2 spaces if on start row
+            // Moving 2 spaces ahead is valid if this piece is on their start row (established above) AND space is unoccupied
             if(i==startRow)
             {
               BoardPosition twoSpacesAhead = BoardPosition(i + 2*forward, j);
               if(!IsSpaceOccupied(twoSpacesAhead)) piece.ValidMoves.add(twoSpacesAhead);
             }
 
-            // Check for enemies on diagonals
+            // Moving diagonally left valid if space is not off the board AND space is occupied by enemy
             BoardPosition frontLeft = BoardPosition(i + forward, j - 1);
             if(GetSpace(frontLeft) != null)
             {  if(IsSpaceOccupiedByColour(frontLeft, enemyColour)) piece.ValidMoves.add(frontLeft); }
 
+            // Moving diagonally right valid if space is not off the board AND space is occupied by enemy
             BoardPosition frontRight = BoardPosition(i + forward, j + 1);
             if(GetSpace(frontRight) != null)
             {  if(IsSpaceOccupiedByColour(frontRight, enemyColour)) piece.ValidMoves.add(frontRight); }
@@ -150,64 +156,30 @@ class BoardManager{
             break;
           case PieceType.knight:
 
-            List<List<int>> jumps = [[1, 2], [1, -2], [-1, 2],[-1, -2], [2,1], [2,-1], [-2, 1], [-2, -1]];
-            for(List<int> jump in jumps){
-
-              BoardPosition jumpPos = BoardPosition(i + jump[0], j + jump[1]);
-              Space jumpSpace = GetSpace(jumpPos);
-
-              if(jumpSpace == null) continue;
-              if(jumpSpace.piece == null || IsSpaceOccupiedByColour(jumpPos, enemyColour))
-                {
-                  piece.ValidMoves.add(jumpPos);
-                }
-            }
-
+            AddRegularMoves(INCRS_KNIGHTJUMPS, 1, piece, i, j, enemyColour);
 
             break;
           case PieceType.bishop:
 
-            List<List<int>> incrs = [[1, 1], [1, -1], [-1, 1],[-1, -1]];
-            BoardPosition pos = BoardPosition(i, j);
-
-            for(List<int> incr in incrs)
-              {
-                int m = 1;
-
-                while(GetSpace(pos.move(incr[0]*m, incr[1]*m)) != null){
-                  BoardPosition newPos = pos.move(incr[0]*m, incr[1]*m);
-                  if(IsSpaceOccupiedByColour(newPos, piece.color))
-                    {
-                      continue;
-                    }
-                  else if(IsSpaceOccupiedByColour(newPos, enemyColour))
-                    {
-                      piece.ValidMoves.add(newPos);
-                      continue;
-                    }
-
-                  piece.ValidMoves.add(newPos);
-                  m++;
-                }
-
-              }
+            AddRegularMoves(INCRS_DIAGONAL, MAX_MOVES, piece, i, j, enemyColour);
 
             break;
           case PieceType.queen:
 
+            AddRegularMoves(INCRS_DIAGONAL + INCRS_LENGTHWAYS, MAX_MOVES, piece, i, j, enemyColour);
+
             break;
           case PieceType.king:
+
+            AddRegularMoves(INCRS_DIAGONAL + INCRS_LENGTHWAYS, 1, piece, i, j, enemyColour);
 
             break;
           case PieceType.rook:
 
+            AddRegularMoves(INCRS_LENGTHWAYS, MAX_MOVES, piece, i, j, enemyColour);
+
             break;
         }
-
-
-
-
-
       }
     }
   }
@@ -215,6 +187,58 @@ class BoardManager{
   bool DetectPromotion(Piece piece, BoardPosition pos) {
     if(piece.type != PieceType.pawn) return false;
     return(pos.row % 7 == 0);
+  }
+
+  /// Maximum number of moves a piece can move across the board at full length. Assumes a 8x8 board.
+  final int MAX_MOVES = 7;
+
+  // Sets of increments that a piece can move by. Generalised due to equivalence in calculation, and set overlap (i.e. queen = rook + bishop)
+  List<List<int>> INCRS_DIAGONAL = [[1, 1], [1, -1], [-1, 1],[-1, -1]];
+  List<List<int>> INCRS_LENGTHWAYS = [[0, 1], [1, 0], [-1, 0],[0, -1]];
+  List<List<int>> INCRS_KNIGHTJUMPS = [[1, 2], [1, -2], [-1, 2],[-1, -2], [2,1], [2,-1], [-2, 1], [-2, -1]];
+
+  /// Adds to a piece's moveset the 'regular' moves that can be described by sets of increments, constrained by a maximum distance, and regardless of direction are halted by team colour and may capture enemy colour (but then are halted).
+  /// Generalised as they effectively describe the primary movement of all pieces except pawns.
+  void AddRegularMoves(List<List<int>> incrs, int maxM, Piece piece, int i, int j, PieceColor enemyColour) {
+
+    BoardPosition pos = BoardPosition(i, j);
+
+    // For each increment in the given set...
+    for(List<int> incr in incrs)
+    {
+      bool searchValid = true;
+
+      /// Distance counter from piece's position
+      int m = 1;
+
+      // While search is valid AND distance does not exceed the maximum...
+      while(searchValid && m <= maxM){
+
+        // If space is off the board, search ends
+        if(GetSpace(pos.move(incr[0]*m, incr[1]*m)) == null) searchValid = false;
+        else {
+          BoardPosition newPos = pos.move(incr[0] * m, incr[1] * m);
+
+          // If a piece of this piece's colour is occupying the space, search ends
+          if (IsSpaceOccupiedByColour(newPos, piece.color)) searchValid = false;
+
+          // If a piece of the enemy's colour is occupying the space, capture move added AND THEN search ends
+          else if (IsSpaceOccupiedByColour(newPos, enemyColour)) {
+            piece.ValidMoves.add(newPos);
+            searchValid = false;
+          }
+
+          // Any other case, the square exists and is empty and can be moved to, and search continues
+          else {
+            piece.ValidMoves.add(newPos);
+            // searchValid is true by default
+            // Increment the distance tracker
+            m++;
+          }
+        }
+      }
+    }
+
   }
 
 
