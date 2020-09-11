@@ -6,3 +6,5 @@ An example chess app for offline play against a human opponent.
 - (✓) Program basic movesets
 - () Program the extended movesets and features (check, castling, promotion...), and win/draw/stalemate conditions
 - () Provide advanced user visual feedback
+
+Status: Work in progress
